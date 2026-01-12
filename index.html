@@ -1,0 +1,823 @@
+// Initialisation de la carte
+let map;
+let markers = [];
+let currentLocation = null;
+
+// Initialisation de l'application au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+    setupEventListeners();
+    displayDefaultInfo();
+
+    // Initialiser le champ code postal
+    document.getElementById('postalResults').innerHTML = '<p class="empty-state">Commencez à taper un code postal</p>';
+});
+
+// Initialisation de la carte Leaflet
+function initMap() {
+    // Centre de la carte sur Jendouba
+    map = L.map('map').setView([36.5, 8.78], 10);
+
+    // Ajout de la couche OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributeurs',
+    maxZoom: 18
+    }).addTo(map);
+
+    // Ajout des marqueurs des lieux
+    addLocationMarkers();
+}
+
+// Ajout des marqueurs des zones agricoles sur la carte
+function addLocationMarkers() {
+    agriculturalData.locations.forEach(location => {
+    // Création d'un marqueur personnalisé
+        const marker = L.circleMarker([location.lat, location.lng], {
+        color: location.color,
+        fillColor: location.color,
+        fillOpacity: 0.7,
+        radius: 15,
+        weight: 2
+        }).addTo(map);
+
+        // Ajout d'une fenêtre popup
+        marker.bindPopup(`
+        <div style="text-align: left; direction: ltr;">
+        <h3 style="margin: 0 0 5px 0; color: ${location.color}">${location.name}</h3>
+        <p style="margin: 0 0 5px 0;"><strong>Type :</strong> ${location.type}</p>
+        <p style="margin: 0 0 5px 0;"><strong>Cultures :</strong> ${location.crops.slice(0, 3).join(', ')}</p>
+        <button onclick="selectLocation(${location.id})" style="background-color: ${location.color}; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-top: 5px;">Voir détails</button>
+        </div>
+        `);
+
+        // Ajout de l'événement clic
+        marker.on('click', function() {
+        selectLocation(location.id);
+        });
+
+        // Sauvegarde de la référence du marqueur
+        markers.push({
+        id: location.id,
+        marker: marker
+        });
+    });
+}
+
+// Sélection d'un lieu spécifique
+function selectLocation(locationId) {
+    // Recherche du lieu par ID
+    const location = agriculturalData.locations.find(loc => loc.id === locationId);
+
+    if (!location) return;
+
+    // Mise à jour du lieu courant
+    currentLocation = location;
+
+    // Mise à jour des informations du lieu
+    updateLocationInfo(location);
+
+    // Déplacement de la carte vers le marqueur
+    map.setView([location.lat, location.lng], 12);
+
+    // Mise en évidence du marqueur sélectionné
+    markers.forEach(m => {
+        if (m.id === locationId) {
+            m.marker.setStyle({ weight: 4, fillOpacity: 0.9 });
+            m.marker.openPopup();
+        } else {
+            m.marker.setStyle({ weight: 2, fillOpacity: 0.7 });
+        }
+    });
+}
+
+// Mise à jour des informations du lieu affichées
+function updateLocationInfo(location) {
+    // Mise à jour du titre et type
+    document.getElementById('location-name').textContent = location.name;
+    document.getElementById('location-type').textContent = location.type;
+    
+    // Mise à jour de la description
+    document.getElementById('location-desc').textContent = location.description;
+    
+    // Mise à jour de la liste des cultures
+    const cropsList = document.getElementById('crops-list');
+    cropsList.innerHTML = '';
+    
+    location.crops.forEach(crop => {
+        const cropTag = document.createElement('div');
+        cropTag.className = 'crop-tag';
+        cropTag.innerHTML = `<i class="fas fa-leaf"></i> ${crop}`;
+        
+        // Ajout de l'événement clic pour afficher les détails de la culture
+        cropTag.addEventListener('click', function() {
+            showCropDetails(crop);
+        });
+        
+        cropsList.appendChild(cropTag);
+    });
+    
+    // Mise à jour du calendrier agricole
+    updateCalendar(location.calendar);
+    
+    // Mise à jour des conseils agricoles
+    const tipsList = document.getElementById('tips-list');
+    tipsList.innerHTML = '';
+    
+    location.tips.forEach(tip => {
+        const li = document.createElement('li');
+        li.textContent = tip;
+        tipsList.appendChild(li);
+    });
+}
+// Mise à jour des informations du lieu affichées
+function updateLocationInfo(location) {
+    // Mise à jour du titre et type
+    document.getElementById('location-name').textContent = location.name;
+    document.getElementById('location-type').textContent = location.type;
+    
+    // Mise à jour de la description
+    document.getElementById('location-desc').textContent = location.description;
+    
+    // Mise à jour de la liste des cultures
+    const cropsList = document.getElementById('crops-list');
+    cropsList.innerHTML = '';
+    
+    location.crops.forEach(crop => {
+        const cropTag = document.createElement('div');
+        cropTag.className = 'crop-tag';
+        cropTag.innerHTML = `<i class="fas fa-leaf"></i> ${crop}`;
+        
+        // Ajout de l'événement clic pour afficher les détails de la culture
+        cropTag.addEventListener('click', function() {
+            showCropDetails(crop);
+        });
+        
+        cropsList.appendChild(cropTag);
+    });
+    
+    // Mise à jour du calendrier agricole
+    updateCalendar(location.calendar);
+    
+    // Mise à jour des conseils agricoles
+    const tipsList = document.getElementById('tips-list');
+    tipsList.innerHTML = '';
+    
+    location.tips.forEach(tip => {
+        const li = document.createElement('li');
+        li.textContent = tip;
+        tipsList.appendChild(li);
+    });
+}
+
+// Affichage des détails d'une culture spécifique
+function showCropDetails(cropName) {
+    const details = agriculturalData.cropDetails[cropName];
+
+    if (details) {
+        // Créer une modale au lieu d'alerte
+        const modal = document.createElement('div');
+        modal.className = 'crop-modal';
+        modal.innerHTML = `
+        <div class="modal-content">
+        <div class="modal-header">
+        <h3><i class="fas fa-seedling"></i> ${cropName}</h3>
+        <button class="close-modal" onclick="this.parentElement.parentElement.remove()">
+        <i class="fas fa-times"></i>
+        </button>
+        </div>
+        <div class="modal-body">
+        <div class="detail-row">
+        <span class="detail-label">Saison :</span>
+        <span class="detail-value">${details.season}</span>
+        </div>
+        <div class="detail-row">
+        <span class="detail-label">Besoins en eau :</span>
+        <span class="detail-value">${details.water}</span>
+        </div>
+        <div class="detail-row">
+        <span class="detail-label">Durée de culture :</span>
+        <span class="detail-value">${details.duration}</span>
+        </div>
+        <div class="modal-footer">
+        <p class="note">Ces informations sont démonstratives à des fins éducatives</p>
+        </div>
+        </div>
+        </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Fermer en cliquant à l'extérieur
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.remove();
+        }});
+        
+    }
+    }
+
+// Affichage des informations par défaut
+function displayDefaultInfo() {
+    // Sélection du premier lieu par défaut
+    if (agriculturalData.locations.length > 0) {
+        selectLocation(agriculturalData.locations[0].id);
+    }
+}
+
+// Configuration des écouteurs d'événements
+function setupEventListeners() {
+// Bouton de localisation
+document.getElementById('locate-btn').addEventListener('click', function() {
+if (navigator.geolocation) {
+navigator.geolocation.getCurrentPosition(function(position) {
+const lat = position.coords.latitude;
+const lng = position.coords.longitude;
+
+map.setView([lat, lng], 12);
+
+// Ajout d'un marqueur pour la position actuelle
+L.marker([lat, lng], {
+icon: L.divIcon({
+className: 'current-location-icon',
+html: '<i class="fas fa-user" style="color: #e74c3c; font-size: 20px;"></i>',
+iconSize: [20, 20]
+})
+}).addTo(map).bindPopup('Votre position actuelle').openPopup();
+
+showNotification('Votre position a été localisée sur la carte !');
+}, function(error) {
+showNotification('Impossible de récupérer votre position. Veuillez vérifier les autorisations de géolocalisation.', 'error');
+});
+} else {
+showNotification('La géolocalisation n\'est pas supportée par votre navigateur.', 'error');
+}
+});
+
+// Bouton de réinitialisation
+document.getElementById('reset-btn').addEventListener('click', function() {
+// Retour à la vue initiale
+map.setView([36.5, 8.78], 10);
+
+// Réinitialisation des marqueurs
+markers.forEach(m => {
+m.marker.setStyle({ weight: 2, fillOpacity: 0.7 });
+m.marker.closePopup();
+});
+
+// Réinitialiser le champ code postal
+document.getElementById('postalCode').value = '';
+document.getElementById('postalResults').innerHTML = '<p class="empty-state">Commencez à taper un code postal</p>';
+
+// Affichage des informations par défaut
+displayDefaultInfo();
+
+showNotification('La carte a été réinitialisée à la vue initiale.');
+});
+}
+
+// ==================== CODE POSTAL FUNCTIONALITIES ====================
+
+// ===== دالة البحث عن الموقع بالرمز البريدي =====
+function findLocationByPostalCode(postalCode) {
+// بيانات الرموز البريدية للمناطق
+    const postalCodeLocations = [
+    { code: "8100", locationId: 1 }, // Jendouba - Centre
+    { code: "8110", locationId: 2 }, // Aïn Draham
+    { code: "8120", locationId: 3 }, // Tabarka
+    { code: "8130", locationId: 4 }, // Fernana
+    { code: "8140", locationId: 5 }, // Bousalem
+    { code: "8180", locationId: 1 } // Ghardimaou -> Jendouba
+];
+
+    // Recherche du code postal
+    const foundPostalCode = postalCodeLocations.find(item => item.code === postalCode);
+
+    if (foundPostalCode) {
+        // Recherche du lieu dans agriculturalData
+        return agriculturalData.locations.find(loc => loc.id === foundPostalCode.locationId);
+    }
+
+    return null;
+}
+
+// ===== دالة البحث بالرمز البريدي (بحث فوري) =====
+function searchPostalCode(code) {
+    const resultsDiv = document.getElementById('postalResults');
+
+    // تنظيف المدخلات
+    code = code.replace(/\D/g, '');
+
+    // تحديث الحقل
+    document.getElementById('postalCode').value = code;
+    // إذا كان فارغاً
+    if (code.length === 0) {
+        resultsDiv.innerHTML = '<p class="empty-state">Commencez à taper un code postal</p>';
+        return;
+    }
+    // إذا كان أقل من 4 أرقام
+    if (code.length < 4) {
+        resultsDiv.innerHTML = `
+        <div class="searching-state">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Recherche en cours... (${code.length}/4 chiffres)</p>
+        </div>
+        `;
+        return; 
+    }
+
+    // Recherche du code postal
+    const location = findLocationByPostalCode(code);
+
+    if (location) {
+        // Afficher le résultat
+        displayPostalResult(location, code);
+
+        // Mettre à jour la carte automatiquement
+        selectLocation(location.id);
+
+        // Déplacer la carte vers le point
+        map.setView([location.lat, location.lng], 12);
+
+        // Afficher une notification de succès
+        showNotification(`📍 Localisation trouvée: ${location.name} (${code})`);
+    } else {
+        // Si non trouvé
+        resultsDiv.innerHTML = `
+        <div class="not-found">
+        <i class="fas fa-exclamation-circle"></i>
+        <div>
+        <h5>Code postal ${code} non trouvé</h5>
+        <p>Ce code postal ne correspond à aucune zone dans notre base de données.</p>
+        <p class="try-suggestion">Essayez l'un des codes suivants:</p>
+        <div class="alternative-codes">
+        ${generateAlternativeCodes()}
+        </div>
+        </div>
+        </div>
+        `;
+    }
+}
+
+// ===== توليد قائمة الرموز البديلة =====
+function generateAlternativeCodes() {
+// الحصول على الرموز البريدية المتاحة من البيانات
+const availableCodes = [
+{ code: "8100", name: "Jendouba Centre" },
+{ code: "8110", name: "Aïn Draham" },
+{ code: "8120", name: "Tabarka" },
+{ code: "8130", name: "Fernana" },
+{ code: "8140", name: "Bousalem" }
+];
+
+let html = '<div class="code-options">';
+availableCodes.forEach(item => {
+html += `
+<button class="code-option" onclick="searchPostalCode('${item.code}')">
+<span class="code">${item.code}</span>
+<span class="name">${item.name}</span>
+</button>
+`;
+});
+html += '</div>';
+
+return html;
+}
+
+// ===== عرض نتيجة البحث =====
+function displayPostalResult(location, postalCode) {
+const resultsDiv = document.getElementById('postalResults');
+
+// Obtenir les détails des cultures depuis agriculturalData.cropDetails
+const cropsList = location.crops.map(crop => {
+const details = agriculturalData.cropDetails[crop];
+return `
+<div class="crop-detail">
+<span class="crop-name">${crop}</span>
+${details ? `<span class="crop-info">${details.season} | ${details.water}</span>` : ''}
+</div>
+`;
+}).join('');
+
+// Générer les informations du calendrier
+const activeMonths = location.calendar
+.filter(month => month.planting > 0 || month.harvesting > 0)
+.slice(0, 3)
+.map(month => month.month)
+.join(', ');
+
+resultsDiv.innerHTML = `
+<div class="postal-result found">
+<div class="result-header">
+<div class="location-title">
+<h5><i class="fas fa-map-marker-alt"></i> ${location.name}</h5>
+<span class="location-type">${location.type}</span>
+</div>
+<span class="postal-badge">${postalCode}</span>
+</div>
+
+<div class="result-content">
+<p class="location-description">${location.description}</p>
+
+<div class="agricultural-info">
+<div class="info-section">
+<h6><i class="fas fa-seedling"></i> Cultures principales</h6>
+<div class="crops-list">
+${cropsList}
+</div>
+</div>
+
+<div class="info-section">
+<h6><i class="fas fa-calendar-check"></i> Période active</h6>
+<p class="active-period">${activeMonths}</p>
+</div>
+</div>
+
+<div class="quick-tips">
+<h6><i class="fas fa-lightbulb"></i> Conseil rapide</h6>
+<p class="tip">${location.tips[0] || "Consultez le calendrier agricole pour plus de détails."}</p>
+</div>
+</div>
+
+<div class="result-actions">
+<button class="btn-action" onclick="focusOnLocation(${location.id})">
+<i class="fas fa-crosshairs"></i> Voir sur la carte
+</button>
+<button class="btn-action secondary" onclick="showAllDetails(${location.id})">
+<i class="fas fa-chart-bar"></i> Voir calendrier complet
+</button>
+<button class="btn-action tertiary" onclick="showCropDetails('${location.crops[0]}')">
+<i class="fas fa-info-circle"></i> Détails culture
+</button>
+</div>
+</div>
+`;
+}
+
+// ===== دالة التركيز على الموقع =====
+function focusOnLocation(locationId) {
+const location = agriculturalData.locations.find(loc => loc.id === locationId);
+if (location) {
+map.setView([location.lat, location.lng], 14);
+
+// Afficher une fenêtre popup
+setTimeout(() => {
+const marker = markers.find(m => m.id === locationId);
+if (marker) {
+marker.marker.openPopup();
+}
+}, 500);
+}
+}
+
+// ===== دالة عرض كل التفاصيل =====
+function showAllDetails(locationId) {
+selectLocation(locationId);
+
+// Scroller vers la section d'information
+document.querySelector('.info-section').scrollIntoView({
+behavior: 'smooth'
+});
+}
+
+// ===== دالة إظهار الإشعارات =====
+function showNotification(message, type = "success") {
+// Quitter s'il y a déjà une notification active
+if (document.querySelector('.notification')) {
+document.querySelector('.notification').remove();
+}
+
+const notification = document.createElement('div');
+notification.className = `notification ${type}`;
+notification.innerHTML = `
+<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+<span>${message}</span>
+<button onclick="this.parentElement.remove()">
+<i class="fas fa-times"></i>
+</button>
+`;
+
+document.body.appendChild(notification);
+
+// Suppression automatique après 5 secondes
+setTimeout(() => {
+if (notification.parentElement) {
+notification.remove();
+}
+}, 5000);
+}
+
+// ===== Mode plein écran pour la carte =====
+function toggleFullscreen() {
+const mapContainer = document.getElementById('map');
+
+if (!document.fullscreenElement) {
+if (mapContainer.requestFullscreen) {
+mapContainer.requestFullscreen();
+} else if (mapContainer.webkitRequestFullscreen) {
+mapContainer.webkitRequestFullscreen();
+} else if (mapContainer.msRequestFullscreen) {
+mapContainer.msRequestFullscreen();
+}
+} else {
+if (document.exitFullscreen) {
+document.exitFullscreen();
+} else if (document.webkitExitFullscreen) {
+document.webkitExitFullscreen();
+} else if (document.msExitFullscreen) {
+document.msExitFullscreen();
+}
+}
+}
+
+// ===== Exporter les données =====
+function exportData() {
+const data = {
+location: currentLocation,
+timestamp: new Date().toISOString(),
+mapView: map.getCenter()
+};
+
+const dataStr = JSON.stringify(data, null, 2);
+const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+const a = document.createElement('a');
+a.href = URL.createObjectURL(dataBlob);
+a.download = `agriculture-${currentLocation.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+a.click();
+
+showNotification('Données exportées avec succès!');
+}
+
+// ===== Partager la localisation =====
+function shareLocation() {
+if (navigator.share && currentLocation) {
+navigator.share({
+title: `Agriculture: ${currentLocation.name}`,
+text: `Découvrez les informations agricoles pour ${currentLocation.name} dans la région de Jendouba.`,
+url: window.location.href
+})
+.then(() => showNotification('Partagé avec succès!'))
+.catch(error => showNotification('Erreur de partage', 'error'));
+} else {
+// Fallback: copier dans le presse-papier
+const text = `Informations agricoles: ${currentLocation.name}\nType: ${currentLocation.type}\nCultures: ${currentLocation.crops.join(', ')}\n\n${window.location.href}`;
+
+navigator.clipboard.writeText(text)
+.then(() => showNotification('Lien copié dans le presse-papier!'))
+.catch(() => showNotification('Impossible de copier', 'error'));
+}
+}
+
+// ===== Filtrer par type de culture =====
+function filterByCropType(type) {
+const locations = agriculturalData.locations.filter(location =>
+location.crops.some(crop => {
+const details = agriculturalData.cropDetails[crop];
+if (!details) return false;
+
+switch(type) {
+case 'cereales':
+return crop === 'Blé' || crop === 'Orge' || crop === 'Fève' || crop === 'Lentille';
+case 'fruits':
+return crop === 'Olive' || crop === 'Amande' || crop === 'Pomme' || crop === 'Poire' || crop === 'Orange' || crop === 'Citron' || crop === 'Figue' || crop === 'Prune' || crop === 'Noix';
+case 'legumes':
+return crop === 'Pomme de terre' || crop === 'Tomate' || crop === 'Légumes';
+default:
+return true;
+}
+})
+);
+
+if (locations.length > 0) {
+// Afficher la première localisation filtrée
+selectLocation(locations[0].id);
+
+// Mettre en évidence les marqueurs filtrés
+markers.forEach(m => {
+const isFiltered = locations.some(loc => loc.id === m.id);
+if (isFiltered) {
+m.marker.setStyle({ weight: 3, fillOpacity: 0.9 });
+} else {
+m.marker.setStyle({ weight: 1, fillOpacity: 0.3 });
+}
+});
+
+showNotification(`${locations.length} zones trouvées pour ${type}`);
+} else {
+showNotification(`Aucune zone trouvée pour ${type}`, 'error');
+}
+}
+
+// ===== Réinitialiser les filtres =====
+function resetFilters() {
+markers.forEach(m => {
+m.marker.setStyle({ weight: 2, fillOpacity: 0.7 });
+});
+
+if (currentLocation) {
+selectLocation(currentLocation.id);
+}
+
+showNotification('Filtres réinitialisés');
+}
+
+// ===== Calculer les statistiques =====
+function calculateStatistics() {
+if (!currentLocation) return;
+
+const totalPlanting = currentLocation.calendar.reduce((sum, month) => sum + month.planting, 0);
+const totalHarvesting = currentLocation.calendar.reduce((sum, month) => sum + month.harvesting, 0);
+const peakMonth = currentLocation.calendar.reduce((peak, month) =>
+(month.planting + month.harvesting) > (peak.planting + peak.harvesting) ? month : peak
+);
+
+const stats = `
+<div class="stats-modal">
+<div class="modal-content">
+<div class="modal-header">
+<h3><i class="fas fa-chart-bar"></i> Statistiques: ${currentLocation.name}</h3>
+<button class="close-modal" onclick="this.parentElement.parentElement.remove()">
+<i class="fas fa-times"></i>
+</button>
+</div>
+<div class="modal-body">
+<div class="stats-grid">
+<div class="stat-item">
+<div class="stat-value">${currentLocation.crops.length}</div>
+<div class="stat-label">Cultures principales</div>
+</div>
+<div class="stat-item">
+<div class="stat-value">${Math.round(totalPlanting / 12)}%</div>
+<div class="stat-label">Plantation moyenne</div>
+</div>
+<div class="stat-item">
+<div class="stat-value">${Math.round(totalHarvesting / 12)}%</div>
+<div class="stat-label">Récolte moyenne</div>
+</div>
+<div class="stat-item">
+<div class="stat-value">${peakMonth.month}</div>
+<div class="stat-label">Mois le plus actif</div>
+</div>
+</div>
+<div class="stats-chart">
+<canvas id="statsChart" width="400" height="200"></canvas>
+</div>
+</div>
+</div>
+</div>
+`;
+
+const modal = document.createElement('div');
+modal.innerHTML = stats;
+document.body.appendChild(modal);
+
+// Créer un graphique simple
+setTimeout(() => {
+const ctx = document.getElementById('statsChart');
+if (ctx) {
+const plantingData = currentLocation.calendar.map(m => m.planting);
+const harvestingData = currentLocation.calendar.map(m => m.harvesting);
+
+new Chart(ctx, {
+type: 'line',
+data: {
+labels: currentLocation.calendar.map(m => m.month.substring(0, 3)),
+datasets: [
+{
+label: 'Plantation',
+data: plantingData,
+borderColor: '#2ecc71',
+backgroundColor: 'rgba(46, 204, 113, 0.1)',
+fill: true
+},
+{
+label: 'Récolte',
+data: harvestingData,
+borderColor: '#e74c3c',
+backgroundColor: 'rgba(231, 76, 60, 0.1)',
+fill: true
+}
+]
+},
+options: {
+responsive: true,
+plugins: {
+title: {
+display: true,
+text: 'Activité agricole mensuelle'
+}
+}
+}
+});
+}
+}, 100);
+}
+
+// ===== Initialisation de l'impression =====
+function printReport() {
+if (!currentLocation) return;
+
+const printWindow = window.open('', '_blank');
+printWindow.document.write(`
+<!DOCTYPE html>
+<html>
+<head>
+<title>Rapport Agricole - ${currentLocation.name}</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 40px; }
+h1 { color: #2c7744; }
+.header { text-align: center; margin-bottom: 30px; }
+.section { margin-bottom: 20px; }
+.crop-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.crop-tag { background: #e8f5e9; padding: 5px 10px; border-radius: 15px; }
+.calendar { width: 100%; border-collapse: collapse; }
+.calendar th, .calendar td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+.footer { margin-top: 40px; font-size: 12px; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+<div class="header">
+<h1>Rapport Agricole</h1>
+<h2>${currentLocation.name} - ${currentLocation.type}</h2>
+<p>Gouvernorat de Jendouba - ${new Date().toLocaleDateString()}</p>
+</div>
+
+<div class="section">
+<h3>Description</h3>
+<p>${currentLocation.description}</p>
+</div>
+
+<div class="section">
+<h3>Cultures principales</h3>
+<div class="crop-list">
+${currentLocation.crops.map(crop => `<span class="crop-tag">${crop}</span>`).join('')}
+</div>
+</div>
+
+<div class="section">
+<h3>Calendrier agricole</h3>
+<table class="calendar">
+<thead>
+<tr>
+<th>Mois</th>
+<th>Plantation (%)</th>
+<th>Récolte (%)</th>
+</tr>
+</thead>
+<tbody>
+${currentLocation.calendar.map(month => `
+<tr>
+<td>${month.month}</td>
+<td>${month.planting}</td>
+<td>${month.harvesting}</td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+
+<div class="section">
+<h3>Conseils agricoles</h3>
+<ul>
+${currentLocation.tips.map(tip => `<li>${tip}</li>`).join('')}
+</ul>
+</div>
+
+<div class="footer">
+<p>© ${new Date().getFullYear()} Calendrier Agricole Intelligent - Jendouba</p>
+<p>Ce rapport est généré automatiquement à partir des données éducatives du projet.</p>
+</div>
+
+<script>
+window.onload = function() {
+window.print();
+setTimeout(() => window.close(), 1000);
+};
+</script>
+</body>
+</html>
+`);
+printWindow.document.close();
+}
+
+// ===== Mode sombre/clair =====
+function toggleTheme() {
+const body = document.body;
+const isDark = body.classList.toggle('dark-theme');
+
+// Sauvegarder la préférence
+localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+showNotification(`Thème ${isDark ? 'sombre' : 'clair'} activé`);
+}
+
+// Charger le thème sauvegardé
+function loadTheme() {
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'dark') {
+document.body.classList.add('dark-theme');
+}
+}
+
+// Appeler au chargement
+loadTheme();
