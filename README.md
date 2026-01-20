@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   MapContainer,
-  TileLayer,
+  TileLayerض
   CircleMarker,
   Popup,
   useMap
-} from "react-leaflet";
+} from "react-leaflet";ض
 import "leaflet/dist/leaflet.css";
 
 // ===================== DATA =====================
@@ -193,3 +193,7 @@ export default function Newmaps() {
     </div>
   );
 }
+npx create-react-app agriculture-jendouba-react
+cd agriculture-jendouba-react
+npm install leaflet react-leaflet chart.js react-chartjs-2
+npm install react-icons
